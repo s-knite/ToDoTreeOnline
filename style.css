@@ -1,0 +1,114 @@
+/* Reset defaults */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: sans-serif;
+}
+
+
+#viewport {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    cursor: grab;
+    
+    /* Slightly lighter background */
+    background-color: #1e1e1e; 
+    
+    /* Drawing the grid lines using gradients */
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        
+    /* Default grid size. JS will override this when zooming */
+    background-size: 80px 80px; 
+}
+
+#viewport:active {
+    cursor: grabbing;
+}
+
+#canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    touch-action: none;
+}
+
+.node {
+    position: absolute;
+    user-select: none; 
+    /* Removed old styles since we are using Tailwind classes now */
+}
+
+
+/* Invert the color of the native calendar icon for dark mode */
+.custom-date::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
+
+
+/* 1. Target SVG paths that have a stroke attribute */
+#connections-layer path[stroke] {
+    /* Force the stroke to render by overriding Tailwind's border-style: solid */
+    border-style: none !important; 
+    
+    /* Ensure Tailwind's 'border-width: 0' doesn't collapse the SVG stroke */
+    border-width: 0 !important; 
+
+    /* Re-assert that this is a vector line, not a box border */
+    stroke-miterlimit: 10;
+}
+
+/* 2. Ensure the SVG container hasn't collapsed to 0x0 */
+#connections-layer {
+    min-width: 100vw;
+    min-height: 100vh;
+    display: block !important;
+}
+
+/* Update this section in your style.css */
+@keyframes lineWipe {
+    from {
+        stroke-dashoffset: var(--path-length, 1000);
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+#connections-layer path {
+    /* Use the variable passed from JS, or fallback to 1000 */
+    stroke-dasharray: var(--path-length, 1000);
+    stroke-dashoffset: 0; /* Default to fully drawn */
+}
+
+/* Only animate paths that we explicitly label as 'animating' */
+#connections-layer path.drawing {
+    stroke-dashoffset: var(--path-length, 1000);
+    animation: lineWipe 0.6s ease-in-out forwards;
+    animation-delay: 0.2s;
+}
+
+#connections-layer path {
+    /* This makes the line's shape follow the node's slide animation */
+    transition: d 0.3s ease-in-out, stroke 0.3s ease-in-out, opacity 0.3s ease-in-out;
+    
+    stroke-dasharray: var(--path-length, 1000);
+    stroke-dashoffset: 0;
+}
+
+#connections-layer path.drawing {
+    stroke-dashoffset: var(--path-length, 1000);
+    animation: lineWipe 0.6s ease-in-out forwards;
+    animation-delay: 0.2s;
+}
