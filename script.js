@@ -324,12 +324,12 @@ window.addEventListener("keydown", (e) => {
     window.getSelection().removeAllRanges(); // Clears the blue text highlight
   }
 
-  //Ctrl + N (New Root Task) ---
-  if (e.altKey && e.key.toLowerCase() === "n") {
-    e.preventDefault(); // CRITICAL: Stops the browser from opening a new window!
+  // New Task (Shift + N) ---
+  if (e.key.toLowerCase() === "n" && e.shiftKey && activeNode) {
+    e.preventDefault();
 
     const newBtn = document.getElementById("add-root-btn");
-    if (newBtn) newBtn.click(); // Triggers your existing spawn & focus logic
+    if (newBtn) newBtn.click();
 
     return;
   }
