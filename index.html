@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Tree To-Do List</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="viewport">
+      <div
+        class="[@media(pointer:coarse)]:hidden fixed bottom-8 left-8 text-slate-500/40 text-sm pointer-events-none z-0 font-mono select-none space-y-2"
+      >
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >Zoom</kbd
+          >
+          Ctrl + Scroll
+        </div>
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >↑↓←→</kbd
+          >
+          Navigate Nodes
+        </div>
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >Esc</kbd
+          >
+          Save Text
+        </div>
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >C</kbd
+          >
+          or
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >Home</kbd
+          >
+          Recenter
+        </div>
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >+ / -</kbd
+          >
+          Expand/Collapse
+        </div>
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >↵</kbd
+          >
+          Edit Title
+        </div>
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >Tab</kbd
+          >
+          Title → Desc
+        </div>
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >Ctrl + L</kbd
+          >
+          Add Link
+        </div>
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >Shift + ↵</kbd
+          >
+          Add Subtask
+        </div>
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >Space</kbd
+          >
+          Mark Complete
+        </div>
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >Del</kbd
+          >
+          Delete Task
+        </div>
+        <div class="flex items-center gap-2">
+          <kbd
+            class="border border-slate-500/40 rounded px-1.5 py-0.5 bg-slate-800/50"
+            >Alt + N</kbd
+          >
+          New Task
+        </div>
+      </div>
+      <div id="canvas">
+        <svg
+          id="connections-layer"
+          style="
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+            overflow: visible;
+          "
+        ></svg>
+      </div>
+    </div>
+
+    <template id="node-template">
+      <div
+        class="node-container absolute w-72 bg-slate-800 border border-slate-600 rounded-lg shadow-xl p-4 flex flex-col gap-3 cursor-pointer transition-all duration-300 hover:border-blue-500 z-10"
+      >
+        <button
+          class="node-delete absolute top-3 right-3 text-slate-500 hover:text-red-500 transition-colors bg-transparent border-none cursor-pointer p-2 -m-2 [@media(pointer:coarse)]:p-3 [@media(pointer:coarse)]:-m-3"
+          title="Delete Task"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            fill="currentColor"
+            viewBox="0 0 16 16"
+            class="[@media(pointer:coarse)]:w-5 [@media(pointer:coarse)]:h-5"
+          >
+            <path
+              d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"
+            />
+            <path
+              fill-rule="evenodd"
+              d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"
+            />
+          </svg>
+        </button>
+
+        <div class="flex items-start gap-3 pr-6">
+          <input
+            type="checkbox"
+            class="node-complete-cb mt-1 w-4 h-4 [@media(pointer:coarse)]:w-6 [@media(pointer:coarse)]:h-6 cursor-pointer accent-blue-500 flex-shrink-0"
+          />
+          <div
+            class="node-title text-white font-bold text-base [@media(pointer:coarse)]:text-lg outline-none break-words flex-grow"
+            contenteditable="true"
+          ></div>
+        </div>
+
+        <div
+          class="node-desc text-slate-300 text-sm [@media(pointer:coarse)]:text-base outline-none break-words empty:before:content-['Add_a_description...'] empty:before:text-slate-500"
+          contenteditable="true"
+        ></div>
+
+        <div class="node-links flex flex-col gap-1"></div>
+
+        <div
+          class="flex justify-between items-center gap-3 border-t border-slate-700 pt-3 mt-1"
+        >
+          <div class="flex-1 flex items-center gap-2">
+            <div class="w-full bg-slate-700 rounded-full h-1.5 overflow-hidden">
+              <div
+                class="node-progress bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+                style="width: 0%"
+              ></div>
+            </div>
+            <span
+              class="node-progress-text text-[10px] text-slate-400 w-8 text-right"
+              >0%</span
+            >
+          </div>
+          <button
+            class="node-add-link text-xs [@media(pointer:coarse)]:text-sm text-blue-400 hover:text-blue-300 px-2 py-1 [@media(pointer:coarse)]:px-4 [@media(pointer:coarse)]:py-2 bg-slate-700 hover:bg-slate-600 rounded transition-colors flex-shrink-0 whitespace-nowrap"
+          >
+            + Link
+          </button>
+        </div>
+
+        <div class="flex gap-2 mt-1">
+          <input
+            type="date"
+            class="node-date flex-1 h-8 [@media(pointer:coarse)]:h-11 bg-slate-700 text-slate-300 text-xs [@media(pointer:coarse)]:text-sm rounded px-2 border border-slate-600 outline-none focus:border-blue-500 custom-date flex-shrink-0 cursor-pointer text-center box-border"
+          />
+
+          <button
+            class="node-add-subtask flex-1 h-8 [@media(pointer:coarse)]:h-11 flex items-center justify-center text-xs [@media(pointer:coarse)]:text-sm text-white bg-blue-600 hover:bg-blue-500 rounded transition-colors shadow-md whitespace-nowrap box-border"
+          >
+            + Subtask
+          </button>
+        </div>
+
+        <button
+          class="node-collapse-btn absolute -right-3 [@media(pointer:coarse)]:-right-4 top-1/2 -translate-y-1/2 bg-slate-700 hover:bg-slate-600 border border-slate-500 text-white rounded-full w-6 h-6 [@media(pointer:coarse)]:w-8 [@media(pointer:coarse)]:h-8 flex items-center justify-center text-xs shadow-md transition-transform z-10 hidden"
+        ></button>
+      </div>
+    </template>
+
+    <template id="link-template">
+      <div class="flex items-center group mb-1 [@media(pointer:coarse)]:mb-3">
+        <button
+          class="link-delete-btn text-red-500 hover:text-red-700 font-bold px-1 text-sm opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer mr-1 leading-none [@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:text-2xl [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:py-2 [@media(pointer:coarse)]:-ml-2"
+        >
+          ×
+        </button>
+        <a
+          class="link-url flex-1 text-xs [@media(pointer:coarse)]:text-base text-blue-400 hover:text-blue-300 hover:underline truncate relative pl-3 [@media(pointer:coarse)]:pl-5 before:content-['🔗'] before:absolute before:left-0 before:text-[8px] [@media(pointer:coarse)]:before:text-sm before:top-[2px] [@media(pointer:coarse)]:before:top-[2px] before:opacity-70"
+          target="_blank"
+        ></a>
+      </div>
+    </template>
+
+    <div
+      id="confirm-modal"
+      class="hidden fixed inset-0 bg-black/50 flex items-center justify-center [@media(pointer:coarse)]:items-start [@media(pointer:coarse)]:pt-24 z-[100] backdrop-blur-sm p-4"
+    >
+      <div
+        class="bg-slate-800 p-8 [@media(pointer:coarse)]:p-10 rounded-xl border border-slate-700 max-w-sm [@media(pointer:coarse)]:max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto"
+      >
+        <h3
+          id="confirm-title"
+          class="text-2xl [@media(pointer:coarse)]:text-3xl font-bold text-white mb-3"
+        >
+          Confirm Action
+        </h3>
+
+        <p
+          id="confirm-message"
+          class="text-lg [@media(pointer:coarse)]:text-xl text-slate-300 mb-8"
+        >
+          Are you sure?
+        </p>
+
+        <div class="flex justify-end gap-3 mt-auto">
+          <button
+            id="confirm-cancel"
+            class="px-5 py-3 [@media(pointer:coarse)]:px-6 [@media(pointer:coarse)]:py-4 text-lg [@media(pointer:coarse)]:text-xl text-slate-400 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            id="confirm-yes"
+            class="px-5 py-3 [@media(pointer:coarse)]:px-6 [@media(pointer:coarse)]:py-4 text-lg [@media(pointer:coarse)]:text-xl bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors font-medium"
+          >
+            Yes, Proceed
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="link-modal"
+      class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center [@media(pointer:coarse)]:items-start [@media(pointer:coarse)]:pt-16 p-4"
+    >
+      <div
+        class="bg-slate-800 p-8 [@media(pointer:coarse)]:p-10 rounded-lg border border-slate-600 shadow-2xl w-full max-w-sm [@media(pointer:coarse)]:max-w-md max-h-[90vh] overflow-y-auto flex flex-col gap-5"
+      >
+        <h3
+          class="text-white font-bold text-2xl [@media(pointer:coarse)]:text-3xl"
+        >
+          Add a Link
+        </h3>
+
+        <div>
+          <label
+            class="block text-slate-300 text-base [@media(pointer:coarse)]:text-lg mb-2"
+            >URL</label
+          >
+          <input
+            type="text"
+            id="modal-url"
+            placeholder="example.com"
+            class="w-full bg-slate-700 text-white p-4 [@media(pointer:coarse)]:py-5 rounded-lg border border-slate-600 outline-none focus:border-blue-500 text-lg [@media(pointer:coarse)]:text-xl"
+          />
+        </div>
+
+        <div>
+          <label
+            class="block text-slate-300 text-base [@media(pointer:coarse)]:text-lg mb-2"
+            >Display Text</label
+          >
+          <input
+            type="text"
+            id="modal-text"
+            placeholder="e.g., Project Docs"
+            class="w-full bg-slate-700 text-white p-4 [@media(pointer:coarse)]:py-5 rounded-lg border border-slate-600 outline-none focus:border-blue-500 text-lg [@media(pointer:coarse)]:text-xl"
+          />
+        </div>
+
+        <div class="flex justify-end gap-3 mt-4">
+          <button
+            id="modal-cancel"
+            class="px-6 py-4 [@media(pointer:coarse)]:px-8 [@media(pointer:coarse)]:py-5 text-lg [@media(pointer:coarse)]:text-xl text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            id="modal-save"
+            class="px-6 py-4 [@media(pointer:coarse)]:px-8 [@media(pointer:coarse)]:py-5 text-lg [@media(pointer:coarse)]:text-xl text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow transition-colors font-medium"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="fixed bottom-8 right-8 [@media(pointer:coarse)]:bottom-10 [@media(pointer:coarse)]:right-6 z-50 flex items-end gap-4"
+    >
+      <button
+        id="add-root-btn"
+        class="bg-blue-600 hover:bg-blue-500 text-white px-6 [@media(pointer:coarse)]:px-8 h-14 [@media(pointer:coarse)]:h-16 rounded-full shadow-xl font-bold transition-transform hover:scale-105 flex items-center gap-2 border border-blue-400 text-lg [@media(pointer:coarse)]:text-xl"
+      >
+        ➕ New Task
+      </button>
+
+      <div class="relative flex flex-col items-end">
+        <div
+          id="gear-menu"
+          class="absolute bottom-16 [@media(pointer:coarse)]:bottom-20 right-0 mb-2 flex flex-col items-end gap-3 opacity-0 scale-95 pointer-events-none transition-all duration-200 origin-bottom-right w-max"
+        >
+          <button
+            onclick="confirmClearList()"
+            class="bg-red-900/80 hover:bg-red-700 text-white px-5 py-2.5 [@media(pointer:coarse)]:px-6 [@media(pointer:coarse)]:py-4 [@media(pointer:coarse)]:text-lg rounded-full shadow-lg font-medium transition-transform hover:scale-105 flex items-center gap-2 border border-red-600 backdrop-blur-sm"
+          >
+            <span>🗑️</span> Clear List
+          </button>
+
+          <button
+            onclick="downloadBackup()"
+            class="bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 [@media(pointer:coarse)]:px-6 [@media(pointer:coarse)]:py-4 [@media(pointer:coarse)]:text-lg rounded-full shadow-lg font-medium transition-transform hover:scale-105 flex items-center gap-2 border border-slate-500"
+          >
+            <span>📥</span> Download Backup
+          </button>
+
+          <label
+            class="bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 [@media(pointer:coarse)]:px-6 [@media(pointer:coarse)]:py-4 [@media(pointer:coarse)]:text-lg rounded-full shadow-lg font-medium transition-transform hover:scale-105 flex items-center gap-2 border border-slate-500 cursor-pointer m-0"
+          >
+            <span>📤</span> Restore Backup
+            <input
+              type="file"
+              class="hidden"
+              accept=".json"
+              onchange="uploadBackup(event)"
+            />
+          </label>
+        </div>
+
+        <button
+          id="gear-btn"
+          class="bg-slate-800 text-white w-14 h-14 [@media(pointer:coarse)]:w-16 [@media(pointer:coarse)]:h-16 rounded-full shadow-2xl border border-slate-600 flex items-center justify-center text-2xl [@media(pointer:coarse)]:text-3xl transition-transform duration-300 hover:bg-slate-700 z-10"
+        >
+          ⚙️
+        </button>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
