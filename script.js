@@ -1,3 +1,25 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import {
+  getDatabase,
+  ref,
+  set,
+  onValue,
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCo52Twg79nPkHB8wJ8-KA66KVo3tpYFhk",
+  authDomain: "todotree-db.firebaseapp.com",
+  databaseURL:
+    "https://todotree-db-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "todotree-db",
+  storageBucket: "todotree-db.firebasestorage.app",
+  messagingSenderId: "314459501606",
+  appId: "1:314459501606:web:6a5bbf01cc2cd376faa2e7",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
 const viewport = document.getElementById("viewport");
 const canvas = document.getElementById("canvas");
 // Canvas State
@@ -28,22 +50,19 @@ function getRandomColor() {
   return branchColors[Math.floor(Math.random() * branchColors.length)];
 }
 
-// Helper to focus a contenteditable element and highlight all its text
-function focusAndSelectAll(el) {
-  if (!el) return;
-  el.focus();
+function focusAndSelectAll(element) {
+  // Wait a fraction of a second for the browser to draw the element
+  setTimeout(() => {
+    // Safety check: if the element got destroyed before this runs, abort!
+    if (!document.body.contains(element)) return;
 
-  // Use the browser's Range API to highlight the text inside the div
-  if (
-    typeof window.getSelection !== "undefined" &&
-    typeof document.createRange !== "undefined"
-  ) {
+    element.focus();
+    const selection = window.getSelection();
     const range = document.createRange();
-    range.selectNodeContents(el);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
+    range.selectNodeContents(element);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }, 50); // 50ms delay is invisible to the user but gives the DOM time to breathe
 }
 // Helper to focus contenteditable elements and move cursor to the end
 function focusAndPlaceCursorAtEnd(el) {
@@ -601,7 +620,7 @@ document.getElementById("add-root-btn").addEventListener("click", () => {
   // Add new roots to the array
   const newRoot = new TodoNode("New Task", 0, 0);
   rootTasks.push(newRoot);
-
+  DataManager.save();
   // Clean, sequential calls
   updateTreeLayout();
   setActiveNode(newRoot);
@@ -675,7 +694,7 @@ class TodoNode {
       } else {
         this.title = e.target.innerText;
       }
-      DataManager.save(); // <-- FIXED HERE
+      DataManager.save();
     });
 
     // Description Logic
@@ -689,7 +708,7 @@ class TodoNode {
       } else {
         this.description = e.target.innerText;
       }
-      DataManager.save(); // <-- FIXED HERE
+      DataManager.save();
     });
 
     // Date Logic
@@ -697,7 +716,7 @@ class TodoNode {
     dateInput.value = this.dueDate;
     dateInput.addEventListener("change", (e) => {
       this.dueDate = e.target.value;
-      DataManager.save(); // <-- FIXED HERE
+      DataManager.save();
     });
 
     const addLinkBtn = div.querySelector(".node-add-link");
@@ -708,7 +727,7 @@ class TodoNode {
         const displayText = text.trim() || validUrl.replace(/^https?:\/\//, "");
         this.links.push({ url: validUrl, text: displayText });
         this.renderLinks();
-        DataManager.save(); // <-- ADDED HERE
+        DataManager.save();
       });
     });
 
@@ -799,7 +818,6 @@ class TodoNode {
     if (isDefaultTitle && noDescription && noLinks && noChildren) {
       this.removeNode(); // It's blank, just trash it
     } else {
-      // Replaced openDeleteModal with our dynamic Confirm Modal
       openConfirmModal(
         () => this.removeNode(),
         "Are you sure you want to delete this task? This will also delete all of its subtasks.",
@@ -838,6 +856,7 @@ class TodoNode {
     // 3. Re-draw the tree
     if (!this.parent || typeof updateTreeLayout === "function") {
       updateTreeLayout();
+      DataManager.save();
     }
   }
 
@@ -878,7 +897,7 @@ class TodoNode {
   addChild() {
     const newChild = new TodoNode("New Subtask", this.x, this.y, this);
     this.children.push(newChild);
-
+    DataManager.save();
     this.calculateProgress();
     this.isExpanded = true;
 
@@ -934,7 +953,7 @@ class TodoNode {
     this.calculateProgress();
 
     updateTreeLayout();
-    DataManager.save(); // <-- ADD THIS LINE HERE!
+    DataManager.save();
   }
 
   /**
@@ -1129,9 +1148,6 @@ class TreeLayoutEngine {
     });
 
     this.drawLines(rootNodes);
-
-    // Triggers your global save logic
-    if (typeof saveToLocalStorage === "function") saveToLocalStorage();
   }
 }
 
@@ -1156,7 +1172,6 @@ function updateTreeLayout() {
       pendingCameraPan = false;
     }
   });
-  DataManager.save();
 }
 
 function downloadBackup() {
@@ -1223,7 +1238,7 @@ function confirmClearList() {
       rootTasks.length = 0;
       LayoutEngine.svgLayer.innerHTML = "";
 
-      // Spawn the starting task (this handles updateTreeLayout and saveToLocalStorage for us)
+      // Spawn the starting task
       spawnDefaultTask();
 
       // Re-center the camera
@@ -1239,21 +1254,100 @@ function confirmClearList() {
 }
 
 // --- Data Persistence Engine ---
+// --- Data Persistence Engine ---
 class TreeDataManager {
-  constructor(storageKey = "todoTreeData") {
-    this.storageKey = storageKey;
+  // We now pass the Firebase database and the room ID into the manager
+  constructor(db, listId) {
+    this.db = db;
+    this.listId = listId;
+    this.isSyncing = false; // Prevents infinite save loops
+    this.isInitialLoad = true; // Tracks the first load so we don't snap the camera constantly
+
+    // NEW: Unique ID for this specific browser tab
+    this.clientId = Date.now() + "_" + Math.random().toString(36).substring(2);
+
+    // NEW: Tracks the age of the board for backups
+    this.currentBoardTimestamp = 0;
   }
 
   save() {
+    if (this.isSyncing) return;
+
     const data = {
       timestamp: Date.now(),
+      lastUpdatedBy: this.clientId, // <-- Stamp your ID on the save!
       roots: rootTasks.map((root) => this.serializeNode(root)),
     };
-    localStorage.setItem(this.storageKey, JSON.stringify(data));
+
+    set(ref(this.db, "lists/" + this.listId), data);
+  }
+
+  /**
+   * Smartly updates the existing tree without destroying the HTML DOM.
+   */
+  reconcileNodes(incomingNodesData, parentNode, currentNodesArray) {
+    const processedIds = new Set();
+    const updatedNodesArray = [];
+
+    incomingNodesData.forEach((dataNode) => {
+      processedIds.add(dataNode.id);
+
+      // 1. Does this node already exist on our screen?
+      let existingNode = currentNodesArray.find((n) => n.id === dataNode.id);
+
+      if (existingNode) {
+        // --- UPDATE EXISTING NODE ---
+
+        // Protection: If the user is currently typing in THIS specific node,
+        // do not overwrite their text with older database data!
+        const isCurrentlyTypingHere =
+          activeNode === existingNode &&
+          (document.activeElement.tagName === "INPUT" ||
+            document.activeElement.isContentEditable);
+
+        if (!isCurrentlyTypingHere) {
+          existingNode.title = dataNode.title;
+          existingNode.description = dataNode.description;
+          existingNode.dueDate = dataNode.dueDate || "";
+          existingNode.links = dataNode.links || [];
+          existingNode.isCompleted = dataNode.isCompleted || false;
+          // existingNode.isExpanded =
+          //   dataNode.isExpanded !== undefined ? dataNode.isExpanded : true;
+          existingNode.syncUI(); // Safely update the HTML text and colors
+        }
+
+        // Recursively check its children
+        existingNode.children = this.reconcileNodes(
+          dataNode.children || [],
+          existingNode,
+          existingNode.children,
+        );
+        existingNode.calculateProgress();
+
+        updatedNodesArray.push(existingNode);
+      } else {
+        // --- CREATE NEW NODE ---
+        // This node was added by another user, so we spawn it!
+        const newNode = this.deserializeNode(dataNode, parentNode);
+        updatedNodesArray.push(newNode);
+      }
+    });
+
+    // --- TRASH DELETED NODES ---
+    currentNodesArray.forEach((oldNode) => {
+      if (!processedIds.has(oldNode.id)) {
+        // It's missing from the new data, meaning another user deleted it.
+        // We just remove the HTML element. The layout engine will handle the rest.
+        oldNode.element.remove();
+      }
+    });
+
+    return updatedNodesArray;
   }
 
   serializeNode(node) {
     return {
+      id: node.id,
       title: node.title,
       description: node.description,
       dueDate: node.dueDate,
@@ -1269,6 +1363,7 @@ class TreeDataManager {
     const node = new TodoNode(data.title, 0, 0, parent, data.color);
 
     // Load data
+    if (data.id) node.id = data.id;
     node.description = data.description || "";
     node.dueDate = data.dueDate || "";
     node.links = data.links || [];
@@ -1289,6 +1384,7 @@ class TreeDataManager {
   }
 
   loadFromData(data) {
+    this.currentBoardTimestamp = data ? data.timestamp : Date.now();
     // 1. Wipe current board
     [...rootTasks].forEach((root) => root.removeNode());
     document.querySelectorAll(".node-container").forEach((el) => el.remove());
@@ -1302,17 +1398,64 @@ class TreeDataManager {
         rootTasks.push(rootNode);
       });
     } else {
-      spawnDefaultTask();
+      spawnDefaultTask(); // Your existing fallback for an empty list
     }
 
     // Clean, sequential calls
     updateTreeLayout();
-    recenterCamera(); // recenterCamera calls setActiveNode, so our new layout engine handles the timing perfectly!
+
+    // Only recenter the camera on the very first load.
+    // If we did this every time, the screen would aggressively jump
+    // every time your collaboration partner clicked a checkbox!
+    if (this.isInitialLoad) {
+      recenterCamera();
+      this.isInitialLoad = false;
+    }
+  }
+
+  // NEW: This method listens to Firebase and updates the screen instantly
+  initSync() {
+    const listRef = ref(this.db, "lists/" + this.listId);
+
+    onValue(listRef, (snapshot) => {
+      const data = snapshot.val();
+      //Spawn the default node if the database is empty ---
+      if (!data) {
+        if (this.isInitialLoad) {
+          spawnDefaultTask();
+          this.save();
+          this.isInitialLoad = false;
+        }
+        return;
+      }
+
+      // Ignore our own saves
+      if (data.lastUpdatedBy === this.clientId && !this.isInitialLoad) {
+        return;
+      }
+
+      this.isSyncing = true;
+      this.currentBoardTimestamp = data.timestamp;
+
+      if (this.isInitialLoad) {
+        // On the very first load, we still want to build from scratch
+        this.loadFromData(data);
+      } else {
+        // On subsequent multiplayer updates, we do a SMART merge!
+        if (data.roots) {
+          const newRoots = this.reconcileNodes(data.roots, null, rootTasks);
+          rootTasks.length = 0; // Empty the array
+          rootTasks.push(...newRoots); // Fill it with the safely updated nodes
+          updateTreeLayout(); // Redraw the connection lines smoothly
+        }
+      }
+
+      setTimeout(() => {
+        this.isSyncing = false;
+      }, 100);
+    });
   }
 }
-
-// Instantiate the engine
-const DataManager = new TreeDataManager();
 
 function uploadBackup(event) {
   const file = event.target.files[0];
@@ -1322,36 +1465,34 @@ function uploadBackup(event) {
   reader.onload = (e) => {
     try {
       const uploadedData = JSON.parse(e.target.result);
-      const currentDataStr = localStorage.getItem("todoTreeData");
 
-      if (currentDataStr) {
-        const currentData = JSON.parse(currentDataStr);
-
-        // Compare timestamps. If current is newer, warn them.
-        if (
-          currentData.timestamp &&
-          uploadedData.timestamp < currentData.timestamp
-        ) {
-          openConfirmModal(
-            () => {
-              DataManager.loadFromData(uploadedData);
-            },
-            "The file you are uploading is older than your current list. Overwriting will cause you to lose recent changes.",
-            "Older Backup Detected",
-            "Overwrite Anyway",
-          );
-          event.target.value = "";
-          return;
-        }
+      // Compare the uploaded file's timestamp to our live, in-memory timestamp
+      if (
+        DataManager.currentBoardTimestamp &&
+        uploadedData.timestamp < DataManager.currentBoardTimestamp
+      ) {
+        openConfirmModal(
+          () => {
+            // Because they clicked "Overwrite Anyway", we force the load
+            DataManager.loadFromData(uploadedData);
+            DataManager.save(); // Instantly push this backup to multiplayer!
+          },
+          "The file you are uploading is older than your current live list. Overwriting will cause you to lose recent changes.",
+          "Older Backup Detected",
+          "Overwrite Anyway",
+        );
+        event.target.value = "";
+        return;
       }
 
-      // If no conflict, just load it
+      // If no conflict (or it's newer), just load it and push to Firebase
       DataManager.loadFromData(uploadedData);
+      DataManager.save();
     } catch (error) {
       console.error("Failed to parse backup:", error);
       alert("Invalid backup file.");
     }
-    event.target.value = ""; // Reset input so you can re-upload the same file if needed
+    event.target.value = "";
   };
   reader.readAsText(file);
 }
@@ -1365,28 +1506,20 @@ function spawnDefaultTask() {
   setActiveNode(initialTask);
 }
 
-// --- Initialize App ---
-const savedData = localStorage.getItem("todoTreeData");
+// --- MULTIPLAYER ROOM LOGIC ---
+const urlParams = new URLSearchParams(window.location.search);
+let listId = urlParams.get("list");
 
-if (savedData) {
-  try {
-    // Change this line to use the DataManager
-    DataManager.loadFromData(JSON.parse(savedData));
-    updateTreeLayout();
-  } catch (e) {
-    console.error("Failed to load saved data", e);
-    spawnDefaultTask();
-  }
-} else {
-  spawnDefaultTask();
+if (!listId) {
+  listId = "list_" + crypto.randomUUID();
+  window.history.replaceState(null, "", `?list=${listId}`);
 }
 
-// Calculate layout and force initial visual paint
+// --- INITIALIZE FIREBASE DB & SYNC ---
+const DataManager = new TreeDataManager(db, listId);
+DataManager.initSync();
 
-updateTreeLayout();
-recenterCamera();
-
-setTimeout(() => {
-  updateTreeLayout();
-  recenterCamera();
-}, 300);
+// --- EXPOSE HTML BUTTON FUNCTIONS ---
+window.confirmClearList = confirmClearList;
+window.downloadBackup = downloadBackup;
+window.uploadBackup = uploadBackup;
