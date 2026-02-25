@@ -325,7 +325,7 @@ window.addEventListener("keydown", (e) => {
   }
 
   // New Task (Shift + N) ---
-  if (e.key.toLowerCase() === "n" && e.shiftKey && activeNode) {
+  if (!isTyping && e.key.toLowerCase() === "n" && e.shiftKey && activeNode) {
     e.preventDefault();
 
     const newBtn = document.getElementById("add-root-btn");
